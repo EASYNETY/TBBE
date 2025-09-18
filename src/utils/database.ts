@@ -1,7 +1,7 @@
 import mysql from 'mysql2/promise';
 
 const dbConfig = {
-  host: process.env.DB_HOST || '3.80.241.11',
+  host: process.env.DB_HOST || 'localhost',
   user: process.env.DB_USER || 'admin',
   password: process.env.DB_PASSWORD || 'Qw3rtyUIOP!#2025',
   database: process.env.DB_NAME || 'nft_marketplace',
