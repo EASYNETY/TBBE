@@ -59,6 +59,15 @@ const createTables = async () => {
       )
     `);
 
+    // Add assessed_value column if not exists (compatible with older MySQL)
+    const columnExists = await query('SHOW COLUMNS FROM properties LIKE "assessed_value"');
+    if (columnExists.length === 0) {
+      await query('ALTER TABLE properties ADD COLUMN assessed_value DECIMAL(15,2) DEFAULT NULL');
+      console.log('Added assessed_value column to properties table');
+    } else {
+      console.log('assessed_value column already exists in properties table');
+    }
+
     // Listings table
     await query(`
       CREATE TABLE IF NOT EXISTS listings (

@@ -34,7 +34,7 @@ router.get('/listings', async (req, res) => {
     }
 
     sqlQuery += " ORDER BY l.created_at DESC LIMIT ? OFFSET ?";
-    params.push(limitNum, (pageNum - 1) * limitNum);
+    params.push(parseInt(limit as string, 10), parseInt((pageNum - 1).toString(), 10) * parseInt(limit as string, 10));
 
     const listings = await query(sqlQuery, params);
 
