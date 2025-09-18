@@ -34,7 +34,7 @@ export const getPool = (): mysql.Pool => {
 export const query = async (sql: string, params?: any[]): Promise<any> => {
   const connection = await getPool().getConnection();
   try {
-    const [rows] = await connection.execute(sql, params);
+    const [rows] = await connection.query(sql, params);
     return rows;
   } finally {
     connection.release();

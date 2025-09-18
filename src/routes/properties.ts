@@ -10,8 +10,15 @@ router.get('/', async (req, res) => {
   try {
     const { page = '1', limit = '20', category, minPrice, maxPrice, location, status = 'verified' } = req.query;
 
-    const pageNum = Number.parseInt(page as string);
-    const limitNum = Number.parseInt(limit as string);
+    let pageNum = Number.parseInt(page as string);
+    if (isNaN(pageNum) || pageNum < 1) {
+      pageNum = 1;
+    }
+
+    let limitNum = Number.parseInt(limit as string);
+    if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
+      limitNum = 20;
+    }
 
     let sqlQuery = `
       SELECT p.*, p.is_featured, l.listing_type, l.price as listing_price, l.end_time,
@@ -43,6 +50,14 @@ router.get('/', async (req, res) => {
     sqlQuery += " ORDER BY p.created_at DESC LIMIT ? OFFSET ?";
     params.push(limitNum, (pageNum - 1) * limitNum);
 
+    // Normalize SQL to remove extra whitespace and newlines
+    sqlQuery = sqlQuery.replace(/\s+/g, ' ').trim();
+
+    console.log('Properties query SQL:', sqlQuery);
+    console.log('Properties query params:', params);
+    console.log('Properties query param types:', params.map(p => typeof p));
+    console.log('Properties query param values:', params.map(p => p === null ? 'null' : p === undefined ? 'undefined' : p));
+
     const properties = await query(sqlQuery, params);
 
     // Get total count for pagination
@@ -65,6 +80,9 @@ router.get('/', async (req, res) => {
       countQuery += " AND p.is_featured = ?";
       countParams.push(1);
     }
+
+    // Normalize count query as well
+    countQuery = countQuery.replace(/\s+/g, ' ').trim();
 
     const countResult = await query(countQuery, countParams);
     const total = countResult[0]?.total || 0;

@@ -60,12 +60,21 @@ const createTables = async () => {
     `);
 
     // Add assessed_value column if not exists (compatible with older MySQL)
-    const columnExists = await query('SHOW COLUMNS FROM properties LIKE "assessed_value"');
-    if (columnExists.length === 0) {
+    const assessedValueExists = await query('SHOW COLUMNS FROM properties LIKE "assessed_value"');
+    if (assessedValueExists.length === 0) {
       await query('ALTER TABLE properties ADD COLUMN assessed_value DECIMAL(15,2) DEFAULT NULL');
       console.log('Added assessed_value column to properties table');
     } else {
       console.log('assessed_value column already exists in properties table');
+    }
+
+    // Add is_featured column if not exists
+    const featuredExists = await query('SHOW COLUMNS FROM properties LIKE "is_featured"');
+    if (featuredExists.length === 0) {
+      await query('ALTER TABLE properties ADD COLUMN is_featured BOOLEAN DEFAULT 0');
+      console.log('Added is_featured column to properties table');
+    } else {
+      console.log('is_featured column already exists in properties table');
     }
 
     // Listings table
