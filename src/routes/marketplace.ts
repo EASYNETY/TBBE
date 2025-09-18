@@ -13,6 +13,10 @@ router.get('/listings', async (req, res) => {
     const pageNum = Number.parseInt(page as string);
     const limitNum = Number.parseInt(limit as string);
 
+    if (isNaN(pageNum) || isNaN(limitNum) || pageNum < 1 || limitNum < 1) {
+      return res.status(400).json({ error: 'Invalid page or limit parameters' });
+    }
+
     let sqlQuery = `
       SELECT l.*, p.title as property_title, p.description as property_description,
              p.images as property_images, p.assessed_value, u.username as seller_username,
@@ -34,7 +38,9 @@ router.get('/listings', async (req, res) => {
     }
 
     sqlQuery += " ORDER BY l.created_at DESC LIMIT ? OFFSET ?";
-    params.push(parseInt(limit as string, 10), parseInt((pageNum - 1).toString(), 10) * parseInt(limit as string, 10));
+    const offset = (pageNum - 1) * limitNum;
+    params.push(limitNum, offset);
+    console.log('Query params:', params); // Debug log
 
     const listings = await query(sqlQuery, params);
 
