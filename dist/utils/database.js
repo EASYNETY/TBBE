@@ -19,7 +19,7 @@ const connectDB = async () => {
     try {
         pool = promise_1.default.createPool(dbConfig);
         const connection = await pool.getConnection();
-        console.log('Connected to MySQL database');
+        console.log('Connected to MySQL database', dbConfig);
         connection.release();
     }
     catch (error) {
@@ -38,7 +38,7 @@ exports.getPool = getPool;
 const query = async (sql, params) => {
     const connection = await (0, exports.getPool)().getConnection();
     try {
-        const [rows] = await connection.execute(sql, params);
+        const [rows] = await connection.query(sql, params);
         return rows;
     }
     finally {

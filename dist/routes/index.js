@@ -7,6 +7,7 @@ exports.investments = exports.billing = exports.analytics = exports.blockchain =
 const express_1 = __importDefault(require("express"));
 const auth_1 = require("../middleware/auth");
 const database_1 = require("../utils/database");
+const notificationService_1 = require("../services/notificationService");
 // Notifications routes
 const notificationsRouter = express_1.default.Router();
 notificationsRouter.use(auth_1.authenticateToken);
@@ -60,6 +61,48 @@ notificationsRouter.put('/:id/read', async (req, res) => {
         const { id } = req.params;
         await (0, database_1.query)("UPDATE notifications SET read_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", [id, req.user.id]);
         res.json({ message: 'Notification marked as read' });
+    }
+    catch (error) {
+        console.error('Mark notification read error:', error);
+        res.status(500).json({ error: 'Failed to mark notification as read' });
+    }
+});
+notificationsRouter.get('/unread/count', async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const count = await notificationService_1.NotificationService.getUnreadCount(req.user.id);
+        res.json({ unreadCount: count });
+    }
+    catch (error) {
+        console.error('Get unread count error:', error);
+        res.status(500).json({ error: 'Failed to get unread count' });
+    }
+});
+notificationsRouter.post('/:id/read', async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const { id } = req.params;
+        // Get notification details
+        const notificationResult = await (0, database_1.query)("SELECT * FROM notifications WHERE id = ? AND user_id = ?", [id, req.user.id]);
+        if (notificationResult.length === 0) {
+            return res.status(404).json({ error: 'Notification not found' });
+        }
+        const notification = notificationResult[0];
+        // Mark as read if not already read
+        if (!notification.read_at) {
+            await (0, database_1.query)("UPDATE notifications SET read_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", [id, req.user.id]);
+        }
+        res.json({
+            message: 'Notification marked as read',
+            notification: {
+                ...notification,
+                data: notification.data ? JSON.parse(notification.data) : null,
+            },
+        });
     }
     catch (error) {
         console.error('Mark notification read error:', error);

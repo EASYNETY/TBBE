@@ -1,0 +1,1 @@
+{"version":3,"file":"create-wallet-flow-tables.d.ts","sourceRoot":"","sources":["../../src/migrations/create-wallet-flow-tables.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,IAAI,EAAE,MAAM,gBAAgB,CAAC;AAEtC;;;GAGG;AACH,wBAAsB,sBAAsB,CAAC,IAAI,EAAE,IAAI,GAAG,OAAO,CAAC,IAAI,CAAC,CA0JtE;AAED,wBAAsB,kBAAkB,CAAC,IAAI,EAAE,IAAI,GAAG,OAAO,CAAC,IAAI,CAAC,CAGlE"}

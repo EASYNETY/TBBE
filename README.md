@@ -119,26 +119,85 @@ The server will start on `http://localhost:5000`
 
 ```
 backend/
+├── .env
+├── .gitignore
+├── .serverless/
+├── README.md
+├── contracts/
+│   ├── AuctionHouse.sol
+│   ├── FractionalProperty.sol
+│   ├── Marketplace.sol
+│   ├── MarketplaceExecutor.sol
+│   ├── MarketplaceGuard.sol
+│   ├── TBAAccount.sol
+│   ├── TitleNFT.sol
+│   └── interfaces/
+│       ├── IAuctionHouse.sol
+│       ├── IFractionalProperty.sol
+│       ├── IMarketplace.sol
+│       ├── IMarketplaceGuard.sol
+│       ├── ITBAAccount.sol
+│       └── ITitleNFT.sol
+├── ecosystem.config.js
+├── hardhat.config.js
+├── package-lock.json
+├── package.json
+├── scripts/
+│   ├── 01-create-marketplace-tables.sql
+│   ├── 01-create-tables.sql
+│   ├── 02-add-user-roles.sql
+│   ├── 02-create-billing-tables.sql
+│   ├── 03-create-revenue-management-tables.sql
+│   ├── 04-add-password-column.sql
+│   ├── add-featured-column.sql
+│   ├── add-hidden-column.sql
+│   ├── add-password-migration.js
+│   ├── add-payment-options-table.sql
+│   ├── deploy-fractional.js
+│   ├── deploy-marketplace.js
+│   ├── eventListener.ts
+│   └── seed-properties.sql
+├── serverless.yml
 ├── src/
+│   ├── controllers/
 │   ├── middleware/
 │   │   └── auth.ts
+│   ├── migrations/
+│   │   ├── add-featured-column.ts
+│   │   ├── create-payment-options.ts
+│   │   ├── create-properties-table.ts
+│   │   └── seed-properties.ts
+│   ├── models/
+│   │   ├── distributionModel.ts
+│   │   └── propertyModel.ts
 │   ├── routes/
-│   │   ├── index.ts
-│   │   ├── auth.ts
 │   │   ├── admin.ts
-│   │   ├── marketplace.ts
-│   │   ├── properties.ts
-│   │   ├── payments.ts
+│   │   ├── auth.ts
 │   │   ├── escrow.ts
+│   │   ├── index.ts
 │   │   ├── kyc.ts
-│   │   └── ...
-│   ├── utils/
-│   │   └── database.ts
-│   └── server.ts
-├── .env
-├── package.json
+│   │   ├── marketplace.ts
+│   │   ├── minting.ts
+│   │   ├── payments.ts
+│   │   └── properties.ts
+│   ├── scripts/
+│   │   ├── eventListener.ts
+│   │   ├── seed-db.ts
+│   │   ├── setup-db.ts
+│   │   └── setupMintingTables.ts
+│   ├── server.ts
+│   ├── services/
+│   │   ├── distributionService.ts
+│   │   ├── errorHandler.ts
+│   │   ├── marketplaceRegistrationService.ts
+│   │   ├── metadataService.ts
+│   │   ├── mintingService.ts
+│   │   ├── propertySyncService.ts
+│   │   └── tbaService.ts
+│   └── utils/
+│       └── database.ts
 ├── tsconfig.json
-└── README.md
+└── Marketplace.test.js
 ```
 
 ## Contributing

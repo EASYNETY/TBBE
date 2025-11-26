@@ -1,0 +1,277 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "ITBAAccount",
+  "sourceName": "contracts/interfaces/ITBAAccount.sol",
+  "abi": [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        },
+        {
+          "components": [
+            {
+              "internalType": "bool",
+              "name": "requiresVoucher",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "cooldownPeriod",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "maxWithdrawalAmount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "address[]",
+              "name": "authorizedSigners",
+              "type": "address[]"
+            }
+          ],
+          "indexed": false,
+          "internalType": "struct ITBAAccount.WithdrawalPolicy",
+          "name": "policy",
+          "type": "tuple"
+        }
+      ],
+      "name": "PolicyUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "recipient",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "WithdrawalExecuted",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "recipient",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "WithdrawalRequested",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "account",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "recipient",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "amount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "address",
+              "name": "token",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "nonce",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "deadline",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes",
+              "name": "signature",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct ITBAAccount.Voucher",
+          "name": "voucher",
+          "type": "tuple"
+        }
+      ],
+      "name": "executeWithVoucher",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "executeWithdrawal",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getWithdrawalPolicy",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "bool",
+              "name": "requiresVoucher",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "cooldownPeriod",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "maxWithdrawalAmount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "address[]",
+              "name": "authorizedSigners",
+              "type": "address[]"
+            }
+          ],
+          "internalType": "struct ITBAAccount.WithdrawalPolicy",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "requestWithdrawal",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes4",
+          "name": "interfaceId",
+          "type": "bytes4"
+        }
+      ],
+      "name": "supportsInterface",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "bool",
+              "name": "requiresVoucher",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "cooldownPeriod",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "maxWithdrawalAmount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "address[]",
+              "name": "authorizedSigners",
+              "type": "address[]"
+            }
+          ],
+          "internalType": "struct ITBAAccount.WithdrawalPolicy",
+          "name": "policy",
+          "type": "tuple"
+        }
+      ],
+      "name": "updateWithdrawalPolicy",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

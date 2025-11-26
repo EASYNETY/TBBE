@@ -1,0 +1,50 @@
+-- Create Subscriptions Table
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+  property_id VARCHAR(36) NOT NULL,
+  subscriber_user_id VARCHAR(36) NOT NULL,
+  subscriber_wallet_address VARCHAR(42) NOT NULL,
+  subscription_amount VARCHAR(255) NOT NULL,
+  subscription_date TIMESTAMP NOT NULL,
+  status ENUM('ACTIVE', 'INACTIVE', 'CANCELLED', 'EXPIRED') DEFAULT 'ACTIVE',
+  share_percentage DECIMAL(10,4) NOT NULL,
+  currency VARCHAR(20) NOT NULL DEFAULT 'USDC',
+  transaction_hash VARCHAR(66),
+  kyc_verified BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_property_id (property_id),
+  INDEX idx_subscriber_user_id (subscriber_user_id),
+  INDEX idx_subscriber_wallet_address (subscriber_wallet_address),
+  INDEX idx_status (status),
+  INDEX idx_subscription_date (subscription_date),
+  UNIQUE KEY unique_subscription (property_id, subscriber_user_id),
+  FOREIGN KEY (property_id) REFERENCES properties(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create Disbursements Table
+CREATE TABLE IF NOT EXISTS disbursements (
+  id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+  property_id VARCHAR(36) NOT NULL,
+  distribution_id VARCHAR(36) NOT NULL,
+  subscriber_id VARCHAR(36) NOT NULL,
+  subscriber_wallet_address VARCHAR(42) NOT NULL,
+  disbursement_amount VARCHAR(255) NOT NULL,
+  disbursement_date TIMESTAMP NOT NULL,
+  currency VARCHAR(20) NOT NULL,
+  type ENUM('YIELD', 'RETURN', 'REVENUE', 'DIVIDEND') DEFAULT 'YIELD',
+  status ENUM('PENDING', 'EXECUTED', 'FAILED') DEFAULT 'PENDING',
+  transaction_hash VARCHAR(66),
+  executed_at TIMESTAMP NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_property_id (property_id),
+  INDEX idx_distribution_id (distribution_id),
+  INDEX idx_subscriber_id (subscriber_id),
+  INDEX idx_subscriber_wallet_address (subscriber_wallet_address),
+  INDEX idx_status (status),
+  INDEX idx_type (type),
+  INDEX idx_disbursement_date (disbursement_date),
+  FOREIGN KEY (property_id) REFERENCES properties(id),
+  FOREIGN KEY (subscriber_id) REFERENCES subscriptions(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

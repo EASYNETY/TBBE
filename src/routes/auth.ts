@@ -63,10 +63,11 @@ router.post('/login', async (req, res) => {
       // Create new user if doesn't exist
       const userId = uuidv4();
       const defaultRole = role || 'user';
+      const defaultPermissions = defaultRole === 'user' ? ['create_property'] : [];
 
       await query(
         'INSERT INTO users (id, wallet_address, role, permissions, is_active) VALUES (?, ?, ?, ?, ?)',
-        [userId, walletAddress, defaultRole, JSON.stringify([]), true]
+        [userId, walletAddress, defaultRole, JSON.stringify(defaultPermissions), true]
       );
 
       users = await query('SELECT * FROM users WHERE id = ?', [userId]);
@@ -131,7 +132,7 @@ router.post('/login', async (req, res) => {
 // This single endpoint replaces the need for separate email login and register routes.
 router.post('/email-auth', async (req, res) => {
   try {
-    const { email, password, isSignup } = req.body;
+    const { email, password, name, isSignup } = req.body;
     const jwtSecret = process.env.JWT_SECRET;
 
     if (!email || !password) {
@@ -145,6 +146,10 @@ router.post('/email-auth', async (req, res) => {
 
     // --- SIGN UP LOGIC ---
     if (isSignup) {
+      if (!name) {
+        return res.status(400).json({ error: 'Name is required for signup' });
+      }
+
       const existingUsers = await query('SELECT id FROM users WHERE email = ?', [lowerCaseEmail]);
       if (existingUsers.length > 0) {
         return res.status(409).json({ error: 'An account with this email already exists.' });
@@ -155,14 +160,14 @@ router.post('/email-auth', async (req, res) => {
       const userId = uuidv4();
       
       await query(
-        'INSERT INTO users (id, email, password, role, permissions, is_active) VALUES (?, ?, ?, ?, ?, ?)',
-        [userId, lowerCaseEmail, hashedPassword, 'user', JSON.stringify([]), true]
+        'INSERT INTO users (id, email, username, password, role, permissions, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [userId, lowerCaseEmail, name, hashedPassword, 'user', JSON.stringify(['create_property']), true]
       );
       
       const results = await query('SELECT * FROM users WHERE id = ?', [userId]);
       const newUser = results[0];
 
-      const token = jwt.sign({ id: newUser.id, userId: newUser.id, address: '', email: newUser.email, name: newUser.username || '', role: newUser.role, permissions: [], isActive: true }, jwtSecret, { expiresIn: '24h' });
+      const token = jwt.sign({ id: newUser.id, userId: newUser.id, address: '', email: newUser.email, name: newUser.username || '', role: newUser.role, permissions: ['create_property'], isActive: true }, jwtSecret, { expiresIn: '24h' });
 
       return res.status(201).json({
           token,
@@ -194,7 +199,7 @@ router.post('/email-auth', async (req, res) => {
       }
       
       await query('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
-      const token = jwt.sign({ id: user.id, userId: user.id, address: '', email: user.email, name: user.username || '', role: user.role, permissions: user.permissions ? JSON.parse(user.permissions) : [], isActive: user.is_active, lastLogin: new Date().toISOString() }, jwtSecret, { expiresIn: '24h' });
+      const token = jwt.sign({ id: user.id, userId: user.id, address: '', email: user.email, name: user.username || '', role: user.role, permissions: user.permissions ? JSON.parse(user.permissions) : ['create_property'], isActive: user.is_active, lastLogin: new Date().toISOString() }, jwtSecret, { expiresIn: '24h' });
 
       return res.json({
           token,
@@ -396,7 +401,7 @@ router.post('/google/callback', async (req, res) => {
 
       await query(
         'INSERT INTO users (id, email, username, avatar_url, social_logins, role, permissions, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [userId, googleUser.email, googleUser.name, googleUser.picture, socialLogins, 'user', JSON.stringify([]), true]
+        [userId, googleUser.email, googleUser.name, googleUser.picture, socialLogins, 'user', JSON.stringify(['create_property']), true]
       );
 
       users = await query('SELECT * FROM users WHERE id = ?', [userId]);
@@ -460,18 +465,35 @@ router.post('/smart-account', authenticateToken, async (req: AuthRequest, res) =
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { smartAccountAddress } = req.body;
+    // Check if user already has a smart account
+    const users = await query('SELECT smart_account_address FROM users WHERE id = ?', [req.user.id]);
+    const user = users[0];
 
-    if (!smartAccountAddress) {
-      return res.status(400).json({ error: 'Smart account address is required' });
+    if (user && user.smart_account_address) {
+      // Return existing smart account
+      return res.json({
+        smartAccountAddress: user.smart_account_address,
+        isExisting: true,
+        message: 'Smart account already exists'
+      });
     }
 
-    await query('UPDATE users SET smart_account_address = ? WHERE id = ?', [smartAccountAddress, req.user.id]);
+    // Generate a new smart account address (9FDB68... format)
+    // In production, integrate with Zerodev or similar AAW provider
+    const newSmartAccountAddress = '0x' + Array.from({ length: 40 }, () =>
+      Math.floor(Math.random() * 16).toString(16)
+    ).join('').toUpperCase();
 
-    res.json({ message: 'Smart account address updated successfully' });
+    await query('UPDATE users SET smart_account_address = ? WHERE id = ?', [newSmartAccountAddress, req.user.id]);
+
+    res.status(201).json({
+      smartAccountAddress: newSmartAccountAddress,
+      isExisting: false,
+      message: 'Smart account created successfully'
+    });
   } catch (error) {
     console.error('Smart account error:', error);
-    res.status(500).json({ error: 'Failed to update smart account' });
+    res.status(500).json({ error: 'Failed to create smart account' });
   }
 });
 
@@ -493,7 +515,7 @@ router.post('/wallet', async (req, res) => {
       const userId = uuidv4();
       await query(
         'INSERT INTO users (id, wallet_address, role, permissions, is_active) VALUES (?, ?, ?, ?, ?)',
-        [userId, walletAddress, 'user', JSON.stringify([]), true]
+        [userId, walletAddress, 'user', JSON.stringify(['create_property']), true]
       );
 
       users = await query('SELECT * FROM users WHERE id = ?', [userId]);

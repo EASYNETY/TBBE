@@ -1,7 +1,8 @@
-import { query } from '../utils/database';
+import { connectDB, query } from '../utils/database';
 
 async function addFeaturedColumn() {
   try {
+    await connectDB();
     await query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT FALSE');
     console.log('Successfully added is_featured column to properties table.');
   } catch (error) {

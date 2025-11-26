@@ -1,6 +1,7 @@
 import express from 'express';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { query } from '../utils/database';
+import { NotificationService } from '../services/notificationService';
 
 const router = express.Router();
 
@@ -70,21 +71,16 @@ router.post('/submit', authenticateToken, async (req: AuthRequest, res) => {
 
     // Create notification for admin
     const adminUsers = await query("SELECT id FROM users WHERE role = 'admin' OR role = 'super-admin'");
+    const adminIds = adminUsers.map((admin: any) => admin.id);
 
-    for (const admin of adminUsers) {
-      const notificationId = require('crypto').randomUUID();
-      await query(`
-        INSERT INTO notifications (
-          id, user_id, type, title, message, data
-        ) VALUES (?, ?, ?, ?, ?, ?)
-      `, [
-        notificationId,
-        admin.id,
+    if (adminIds.length > 0) {
+      await NotificationService.notifyMultipleUsers(
+        adminIds,
         'kyc_submission',
         'New KYC Submission',
-        `User ${req.user.address} has submitted KYC verification`,
-        JSON.stringify({ userId: req.user.id, userAddress: req.user.address }),
-      ]);
+        `User ${req.user.name || req.user.address} has submitted KYC verification`,
+        { userId: req.user.id, userAddress: req.user.address, userName: req.user.name }
+      );
     }
 
     res.json({
@@ -115,29 +111,16 @@ router.post('/:userId/approve', authenticateToken, async (req: AuthRequest, res)
 
     if (approved) {
       await query("UPDATE users SET kyc_status = 'approved' WHERE id = ?", [userId]);
+      // Create notification for user
+      await NotificationService.notifyKYCApproved(userId);
     } else {
       await query(
         "UPDATE users SET kyc_status = 'rejected', kyc_data = JSON_SET(kyc_data, '$.rejectionReason', ?) WHERE id = ?",
         [rejectionReason, userId]
       );
+      // Create notification for user
+      await NotificationService.notifyKYCRejected(userId, rejectionReason);
     }
-
-    // Create notification for user
-    const notificationId = require('crypto').randomUUID();
-    await query(`
-      INSERT INTO notifications (
-        id, user_id, type, title, message, data
-      ) VALUES (?, ?, ?, ?, ?, ?)
-    `, [
-      notificationId,
-      userId,
-      approved ? 'kyc_approved' : 'kyc_rejected',
-      approved ? 'KYC Approved' : 'KYC Rejected',
-      approved
-        ? 'Your KYC verification has been approved!'
-        : `Your KYC verification has been rejected: ${rejectionReason}`,
-      JSON.stringify({ approved, rejectionReason }),
-    ]);
 
     res.json({
       message: `KYC ${approved ? 'approved' : 'rejected'} successfully`,

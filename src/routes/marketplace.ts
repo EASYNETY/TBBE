@@ -2,6 +2,7 @@ import express from 'express';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { query } from '../utils/database';
 import { v4 as uuidv4 } from 'uuid';
+import { NotificationService } from '../services/notificationService';
 
 const router = express.Router();
 
@@ -382,6 +383,20 @@ router.post('/bids', authenticateToken, async (req: AuthRequest, res) => {
     `, [bidId]);
 
     const bid = bidResult[0];
+
+    // Notify the property owner about the new bid
+    try {
+      await NotificationService.notifyBidReceived(
+        listing.seller_id,
+        req.user.name || req.user.address,
+        listing.property_title,
+        amount,
+        listingId
+      );
+    } catch (notificationError) {
+      console.error('Error creating bid notification:', notificationError);
+      // Don't fail the bid creation if notification fails
+    }
 
     res.status(201).json({ bid });
   } catch (error) {

@@ -3,7 +3,105 @@ import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { query } from '../utils/database';
 import { v4 as uuidv4 } from 'uuid';
 
+function safeParseArray(input: any): any[] {
+  if (input === null || input === undefined) return [];
+  try {
+    const v = typeof input === 'string' ? JSON.parse(input) : input;
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
 const router = express.Router();
+
+// Get user's own properties (or all properties for admin)
+router.get('/my-properties', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { page = '1', limit = '20' } = req.query;
+
+    let pageNum = Number.parseInt(page as string);
+    if (isNaN(pageNum) || pageNum < 1) {
+      pageNum = 1;
+    }
+
+    let limitNum = Number.parseInt(limit as string);
+    if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
+      limitNum = 20;
+    }
+
+    let sqlQuery;
+    let params;
+    let countQuery;
+
+    // Admin sees all properties, users see only their own
+    if (req.user.role === 'admin' || req.user.role === 'super-admin') {
+      sqlQuery = `
+        SELECT p.*, l.listing_type, l.price as listing_price, l.end_time, l.status as listing_status,
+               u.username as owner_username, u.wallet_address as owner_address
+        FROM properties p
+        LEFT JOIN listings l ON p.id = l.property_id AND l.status IN ('active', 'pending')
+        LEFT JOIN users u ON p.owner_id = u.id
+        ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+      `;
+      params = [limitNum, (pageNum - 1) * limitNum];
+      countQuery = "SELECT COUNT(*) as total FROM properties";
+    } else {
+      sqlQuery = `
+        SELECT p.*, l.listing_type, l.price as listing_price, l.end_time, l.status as listing_status,
+               u.username as owner_username, u.wallet_address as owner_address
+        FROM properties p
+        LEFT JOIN listings l ON p.id = l.property_id AND l.status IN ('active', 'pending')
+        LEFT JOIN users u ON p.owner_id = u.id
+        WHERE p.owner_id = ?
+        ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+      `;
+      params = [req.user.id, limitNum, (pageNum - 1) * limitNum];
+      countQuery = "SELECT COUNT(*) as total FROM properties WHERE owner_id = ?";
+    }
+
+    const properties = await query(sqlQuery, params);
+
+    // Get total count
+    const countParams = req.user.role === 'admin' || req.user.role === 'super-admin' ? [] : [req.user.id];
+    const countResult = await query(countQuery, countParams);
+    const total = countResult[0]?.total || 0;
+
+    res.json({
+      properties: properties.map((p: any) => {
+        const images = safeParseArray(p.images);
+        const documents = safeParseArray(p.documents);
+        const verification_documents = safeParseArray(p.verification_documents);
+        let listing_price: string | null = null;
+        try {
+          listing_price = p?.listing_price != null ? Number(p.listing_price).toFixed(2) : null;
+        } catch {
+          listing_price = null;
+        }
+        return {
+          ...p,
+          images,
+          documents,
+          verification_documents,
+          listing_price,
+        };
+      }),
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        pages: Math.ceil(total / limitNum),
+      },
+    });
+  } catch (error) {
+    console.error('My properties API error:', error);
+    res.status(500).json({ error: 'Failed to fetch properties' });
+  }
+});
 
 // Properties routes
 router.get('/', async (req, res) => {
@@ -58,7 +156,16 @@ router.get('/', async (req, res) => {
     console.log('Properties query param types:', params.map(p => typeof p));
     console.log('Properties query param values:', params.map(p => p === null ? 'null' : p === undefined ? 'undefined' : p));
 
-    const properties = await query(sqlQuery, params);
+    let properties: any[];
+    try {
+      properties = await query(sqlQuery, params);
+    } catch (err: any) {
+      console.error('Properties primary query failed:', { message: err?.message, code: err?.code, sql: sqlQuery });
+      // Fallback: minimal query without joins/fields that may not exist in older schemas
+      const fallbackSql = "SELECT * FROM properties p ORDER BY p.created_at DESC LIMIT ? OFFSET ?";
+      const fallbackParams = [limitNum, (pageNum - 1) * limitNum];
+      properties = await query(fallbackSql, fallbackParams);
+    }
 
     // Get total count for pagination
     let countQuery = "SELECT COUNT(*) as total FROM properties p WHERE 1=1";
@@ -84,17 +191,35 @@ router.get('/', async (req, res) => {
     // Normalize count query as well
     countQuery = countQuery.replace(/\s+/g, ' ').trim();
 
-    const countResult = await query(countQuery, countParams);
-    const total = countResult[0]?.total || 0;
+    let total = 0;
+    try {
+      const countResult = await query(countQuery, countParams);
+      total = countResult[0]?.total || 0;
+    } catch (err: any) {
+      console.error('Properties count query failed:', { message: err?.message, code: err?.code, sql: countQuery });
+      const fallbackCountResult = await query("SELECT COUNT(*) as total FROM properties p", []);
+      total = fallbackCountResult[0]?.total || 0;
+    }
 
     res.json({
-      properties: properties.map((p: any) => ({
-        ...p,
-        images: p.images ? JSON.parse(p.images) : [],
-        documents: p.documents ? JSON.parse(p.documents) : [],
-        verification_documents: p.verification_documents ? JSON.parse(p.verification_documents) : [],
-        listing_price: p.listing_price ? Number(p.listing_price).toFixed(2) : null,
-      })),
+      properties: properties.map((p: any) => {
+        const images = safeParseArray(p.images);
+        const documents = safeParseArray(p.documents);
+        const verification_documents = safeParseArray(p.verification_documents);
+        let listing_price: string | null = null;
+        try {
+          listing_price = p?.listing_price != null ? Number(p.listing_price).toFixed(2) : null;
+        } catch {
+          listing_price = null;
+        }
+        return {
+          ...p,
+          images,
+          documents,
+          verification_documents,
+          listing_price,
+        };
+      }),
       pagination: {
         page: pageNum,
         limit: limitNum,
@@ -119,6 +244,10 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
       description,
       address,
       property_type,
+      ownership_type,
+      fractional,
+      supply,
+      project_id,
       square_footage,
       bedrooms,
       bathrooms,
@@ -126,6 +255,12 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
       lot_size,
       images,
       documents,
+      video_tour_url,
+      metadata_tags,
+      legal_description,
+      assessed_value,
+      jurisdiction,
+      document_hash,
     } = req.body;
 
     // Validate required fields
@@ -136,10 +271,10 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
     const propertyId = uuidv4();
     const sqlQuery = `
       INSERT INTO properties (
-        id, owner_id, title, description, address, property_type,
+        id, owner_id, title, description, address, property_type, ownership_type, fractional, supply, project_id,
         square_footage, bedrooms, bathrooms, year_built, lot_size,
-        images, documents, verification_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+        images, documents, video_tour_url, metadata_tags, legal_description, assessed_value, jurisdiction, document_hash, verification_status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
     `;
 
     await query(sqlQuery, [
@@ -149,6 +284,10 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
       description,
       address,
       property_type,
+      ownership_type || null,
+      fractional || false,
+      supply || null,
+      project_id || null,
       square_footage || null,
       bedrooms || null,
       bathrooms || null,
@@ -156,6 +295,12 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
       lot_size || null,
       JSON.stringify(images || []),
       JSON.stringify(documents || []),
+      video_tour_url || null,
+      JSON.stringify(metadata_tags || []),
+      legal_description || null,
+      assessed_value || null,
+      jurisdiction || null,
+      document_hash || null,
     ]);
 
     // Fetch the created property
@@ -235,8 +380,12 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
 
     const setClause = updateFields.map(field => `${field} = ?`).join(', ');
     const values = updateFields.map(field => {
-      if (['images', 'documents', 'verification_documents'].includes(field)) {
+      if (['images', 'documents', 'verification_documents', 'metadata_tags'].includes(field)) {
         return JSON.stringify(updates[field] || []);
+      }
+      // Handle new fields that are not JSON but might be null
+      if (['legal_description', 'assessed_value', 'jurisdiction', 'document_hash'].includes(field)) {
+        return updates[field] || null;
       }
       return updates[field];
     });
@@ -271,8 +420,13 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
 
     const { id } = req.params;
 
-    // Check if property exists and user owns it
-    const propertyResult = await query("SELECT * FROM properties WHERE id = ? AND owner_id = ?", [id, req.user.id]);
+    // Check if property exists and user owns it (or user is admin)
+    let propertyResult;
+    if (req.user.role === 'admin' || req.user.role === 'super-admin') {
+      propertyResult = await query("SELECT * FROM properties WHERE id = ?", [id]);
+    } else {
+      propertyResult = await query("SELECT * FROM properties WHERE id = ? AND owner_id = ?", [id, req.user.id]);
+    }
 
     if (propertyResult.length === 0) {
       return res.status(404).json({ error: 'Property not found or unauthorized' });

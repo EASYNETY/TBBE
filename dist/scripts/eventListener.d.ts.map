@@ -1,0 +1,1 @@
+{"version":3,"file":"eventListener.d.ts","sourceRoot":"","sources":["../../src/scripts/eventListener.ts"],"names":[],"mappings":"AAEA,qBAAa,oBAAoB;IAC/B,OAAO,CAAC,SAAS,CAAkB;IACnC,OAAO,CAAC,UAAU,CAAC,CAAiB;;IAMpC,cAAc,IAAI,IAAI;IA6BtB,aAAa,IAAI,IAAI;IASrB,SAAS,IAAI;QAAE,SAAS,EAAE,OAAO,CAAA;KAAE;IAK7B,WAAW,IAAI,OAAO,CAAC,IAAI,CAAC;CAGnC;AAED,eAAO,MAAM,oBAAoB,sBAA6B,CAAC"}

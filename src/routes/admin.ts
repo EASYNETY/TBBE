@@ -1,7 +1,13 @@
+require("dotenv").config(); 
 import express from 'express';
 import { authenticateToken, requireRole, AuthRequest } from '../middleware/auth';
 import { query } from '../utils/database';
 import { v4 as uuidv4 } from 'uuid';
+import { mintTitleNFT } from '../services/blockchain';
+
+console.log('Loaded MINTER_ADDRESS:', process.env.MINTER_ADDRESS);
+console.log('Loaded PRIVATE_KEY:', process.env.PRIVATE_KEY ? '✔️ Exists' : '❌ Missing');
+
 
 const router = express.Router();
 
@@ -49,7 +55,7 @@ const router = express.Router();
     }
   });
 
-  // Properties routes
+  // Properties routes - Show ALL properties for admin
   router.get('/properties', async (req: AuthRequest, res) => {
     try {
       const { page = '1', limit = '20', status } = req.query;
@@ -65,8 +71,8 @@ const router = express.Router();
       `;
       const params: any[] = [];
 
-      if (status) {
-        sqlQuery += " AND p.verification_status = ?";
+      if (status && status !== 'undefined' && status !== '') {
+        sqlQuery += " AND p.status = ?";
         params.push(status);
       }
 
@@ -77,8 +83,8 @@ const router = express.Router();
         query(sqlQuery, params),
         query(`
           SELECT COUNT(*) as total FROM properties p
-          WHERE 1=1 ${status ? 'AND p.verification_status = ?' : ''}
-        `, status ? [status] : [])
+          WHERE 1=1 ${status && status !== 'undefined' && status !== '' ? 'AND p.status = ?' : ''}
+        `, status && status !== 'undefined' && status !== '' ? [status] : [])
       ]);
 
       const total = countResult[0]?.total || 0;
@@ -90,7 +96,9 @@ const router = express.Router();
           createdAt: new Date(p.created_at).toISOString().split('T')[0],
           images: p.images ? JSON.parse(p.images) : [],
           documents: p.documents ? JSON.parse(p.documents) : [],
-          verification_documents: p.verification_documents ? JSON.parse(p.verification_documents) : []
+          verification_documents: p.verification_documents ? JSON.parse(p.verification_documents) : [],
+          metadata_tags: p.metadata_tags ? JSON.parse(p.metadata_tags) : [],
+          hidden: p.hidden || false
         })),
         pagination: {
           page: pageNum,
@@ -306,6 +314,125 @@ const router = express.Router();
       res.status(500).json({ error: 'Failed to update property status' });
     }
   });
+  // Property approval route
+  router.post('/properties/:id/approve', async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+
+      const result = await query(
+        'UPDATE properties SET verification_status = "verified", updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [id]
+      );
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: 'Property not found' });
+      }
+
+      res.json({ message: 'Property approved successfully', status: 'verified' });
+    } catch (error) {
+      console.error('Failed to approve property:', error);
+      res.status(500).json({ error: 'Failed to approve property' });
+    }
+  });
+  // Property reject route
+  router.post('/properties/:id/reject', async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+
+      const result = await query(
+        'UPDATE properties SET verification_status = "rejected", updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [id]
+      );
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: 'Property not found' });
+      }
+
+      res.json({ message: 'Property rejected successfully', status: 'rejected' });
+    } catch (error) {
+      console.error('Failed to reject property:', error);
+      res.status(500).json({ error: 'Failed to reject property' });
+    }
+  });
+router.post('/properties/:id/mint', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get property details
+    const [property] = await query(`
+      SELECT p.*, u.wallet_address as owner_wallet_address
+      FROM properties p
+      LEFT JOIN users u ON p.owner_id = u.id
+      WHERE p.id = ?
+    `, [id]);
+
+    if (!property) {
+      return res.status(404).json({ error: 'Property not found' });
+    }
+
+    if (property.verification_status !== 'verified') {
+      return res.status(400).json({ error: 'Property must be verified before minting' });
+    }
+
+    if (property.token_id) {
+      return res.status(400).json({ error: 'Property already minted' });
+    }
+
+    // Check for required details
+    if (!property.legal_description || !property.assessed_value || !property.jurisdiction || !property.document_hash) {
+      return res.status(400).json({
+        error: 'Missing required property details for minting. Ensure legal_description, assessed_value, jurisdiction, and document_hash are set.'
+      });
+    }
+
+    // Use system wallet for minting
+    const minterAddress = process.env.MINTER_ADDRESS;
+    const privateKey = process.env.PRIVATE_KEY;
+
+    if (!minterAddress || !privateKey) {
+      return res.status(500).json({ error: 'Minter wallet not configured on server' });
+    }
+
+    // Mint NFT using system wallet
+    const { tokenId, transactionHash } = await mintTitleNFT(
+      minterAddress,
+      property.id,
+      property.legal_description,
+      property.assessed_value,
+      property.jurisdiction,
+      property.document_hash
+    );
+
+    // Update property with token ID and transaction hash
+    await query(
+      'UPDATE properties SET token_id = ?, mint_transaction_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [tokenId, transactionHash, id]
+    );
+
+    // Create transaction record
+    const transactionId = uuidv4();
+    await query(
+      'INSERT INTO transactions (id, property_id, transaction_type, status, transaction_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [transactionId, id, 'mint', 'confirmed', transactionHash, new Date().toISOString()]
+    );
+
+    console.log('✅ Property minted successfully:', { tokenId, transactionHash, propertyId: id });
+
+    res.json({
+      message: 'Property minted successfully',
+      tokenId,
+      transactionId,
+      transactionHash,
+      minterAddress,
+      status: 'verified'
+    });
+
+  } catch (error) {
+    console.error('❌ Failed to mint property:', error);
+    res.status(500).json({ error: 'Failed to mint property' });
+  }
+});
+
 
   // Property CRUD
   router.post('/properties', async (req: AuthRequest, res) => {
@@ -313,8 +440,8 @@ const router = express.Router();
       const propertyData = req.body;
       const id = uuidv4();
       await query(
-        'INSERT INTO properties (id, owner_id, title, description, address, property_type, square_footage, bedrooms, bathrooms, year_built, lot_size, images, documents, verification_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "pending")',
-        [id, propertyData.owner_id || null, propertyData.title, propertyData.description, propertyData.address, propertyData.property_type, propertyData.square_footage || null, propertyData.bedrooms || null, propertyData.bathrooms || null, propertyData.year_built || null, propertyData.lot_size || null, JSON.stringify(propertyData.images || []), JSON.stringify(propertyData.documents || [])]
+        'INSERT INTO properties (id, owner_id, title, description, address, property_type, ownership_type, fractional, supply, project_id, square_footage, bedrooms, bathrooms, year_built, lot_size, images, documents, video_tour_url, metadata_tags, legal_description, assessed_value, jurisdiction, document_hash, verification_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "pending")',
+        [id, propertyData.owner_id || req.user?.id || null, propertyData.title, propertyData.description, propertyData.address, propertyData.property_type, propertyData.ownership_type || 'fractional', propertyData.fractional || false, propertyData.supply || null, propertyData.project_id || null, propertyData.square_footage || null, propertyData.bedrooms || null, propertyData.bathrooms || null, propertyData.year_built || null, propertyData.lot_size || null, JSON.stringify(propertyData.images || []), JSON.stringify(propertyData.documents || []), propertyData.video_tour_url || null, JSON.stringify(propertyData.metadata_tags || []), propertyData.legal_description || null, propertyData.assessed_value || null, propertyData.jurisdiction || null, propertyData.document_hash || null]
       );
       res.status(201).json({ message: 'Property created successfully', id });
     } catch (error) {
@@ -333,8 +460,12 @@ const router = express.Router();
       }
       const setClause = updateFields.map(field => `${field} = ?`).join(', ');
       const values = updateFields.map(field => {
-        if (['images', 'documents'].includes(field)) {
+        if (['images', 'documents', 'metadata_tags'].includes(field)) {
           return JSON.stringify(updates[field] || []);
+        }
+        // Handle new fields that are not JSON but might be null
+        if (['legal_description', 'assessed_value', 'jurisdiction', 'document_hash'].includes(field)) {
+          return updates[field] || null;
         }
         return updates[field];
       });
@@ -350,6 +481,36 @@ const router = express.Router();
   router.delete('/properties/:id', async (req: AuthRequest, res) => {
     try {
       const { id } = req.params;
+
+      // First, check the property status and visibility
+      const [property] = await query('SELECT verification_status, hidden FROM properties WHERE id = ?', [id]);
+      if (!property) {
+        return res.status(404).json({ error: 'Property not found' });
+      }
+
+      // Business rules for deletion:
+      // 1. Approved properties cannot be deleted unless rejected first
+      // 2. Properties that are still visible (not hidden) cannot be deleted
+      if (property.verification_status === 'approved') {
+        return res.status(400).json({
+          error: 'Cannot delete approved property. Property must be rejected first before deletion.'
+        });
+      }
+
+      if (!property.hidden) {
+        return res.status(400).json({
+          error: 'Cannot delete visible property. Property must be hidden first before deletion.'
+        });
+      }
+
+      // Check if property has any active listings
+      const [activeListings] = await query('SELECT COUNT(*) as count FROM listings WHERE property_id = ? AND status = "active"', [id]);
+      if (activeListings.count > 0) {
+        return res.status(400).json({
+          error: 'Cannot delete property with active listings. Cancel all listings first.'
+        });
+      }
+
       const result = await query('DELETE FROM properties WHERE id = ?', [id]);
       if (result.affectedRows === 0) {
         return res.status(404).json({ error: 'Property not found' });

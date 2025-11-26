@@ -1,0 +1,38 @@
+service: titlebase-backend
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  environment:
+    NODE_ENV: ${self:provider.stage}
+    PORT: 5000
+    FRONTEND_URL: https://main.d3745i28faizww.amplifyapp.com
+    DB_HOST: 3.80.241.11
+    DB_USER: admin
+    DB_PASSWORD: Qw3rtyUIOP!#2025
+    DB_NAME: nft_marketplace
+    JWT_SECRET: erwtqwertwrewtewtqgergetggw
+    SUPER_ADMIN_PASSWORD: admin123
+    GOOGLE_CLIENT_ID: your-google-client-id
+    GOOGLE_CLIENT_SECRET: your-google-client-secret
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:*
+        - s3:*
+        - rds:*
+        - secretsmanager:*
+      Resource: "*"
+
+functions:
+  api:
+    handler: src/server.handler
+    events:
+      - httpApi:
+          path: /api/{proxy+}
+          method: '*'
+      - httpApi:
+          path: /{proxy+}
+          method: '*'

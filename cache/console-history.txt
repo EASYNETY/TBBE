@@ -1,0 +1,2 @@
+   await ethers.provider.getTransactionCount(signer.address, "pending")
+const [signer] = await ethers.getSigners()
